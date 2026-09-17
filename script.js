@@ -16,7 +16,6 @@ let minefield = []
 
 document.addEventListener("DOMContentLoaded", () => {
     drawBoard();
-    generateMinefield(max_x, max_y);
 });
 
 
@@ -66,6 +65,8 @@ function explode(){
 function revealCell(element) {
     let x = Number(element.target?.dataset.x ?? element.dataset.x);
     let y = Number(element.target?.dataset.y ?? element.dataset.y);
+    generateMinefield(max_x, max_y, x, y);
+
     let cell = minefield[x][y];
 
     let image = document.createElement("img");
@@ -118,7 +119,11 @@ function toggleFlag(element) {
     }
 }
 
-function generateMinefield(max_x, max_y) {
+function generateMinefield(max_x, max_y, x, y) {
+    if (minefield.length !== 0){
+        return;
+    }
+
     // Build an empty minefield
     for (let y = 0; y < max_y; y++) {
         let row = [];
@@ -139,7 +144,7 @@ function generateMinefield(max_x, max_y) {
         let random_x = Math.floor(Math.random() * max_x);
         let random_y = Math.floor(Math.random() * max_y);
 
-        if (!minefield[random_x][random_y].isMine) {
+        if (!minefield[random_x][random_y].isMine && (random_x !== x && random_y !== y)) {
             minefield[random_x][random_y].isMine = true;
             minesPlaced++;
 
