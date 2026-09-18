@@ -11,7 +11,7 @@ const adjacentCellsOffset = [
 
 let max_x = 9;
 let max_y = 9;
-let max_mines = 15;
+let max_mines = 10;
 let minefield = []
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -38,11 +38,9 @@ function drawBoard() {
     }
 }
 
-function explode(){
+function explode(generateExtraMine) {
     let cells = document.querySelectorAll(".cell");
-    let mineImage = document.createElement("img");
-    mineImage.className = "cell";
-    mineImage.setAttribute("src", "assets/mine.svg");
+    let extraMineGenerated = false;
 
     cells.forEach((cell) => {
         let x = cell.dataset.x;
@@ -53,11 +51,20 @@ function explode(){
         cell.removeEventListener("contextmenu", toggleFlag);
 
         // Show not flagged mines
-        if(minefield[x][y].isMine && cell.tagName === "BUTTON"){
+        if (minefield[x][y].isMine && cell.tagName === "BUTTON") {
             let mineImage = document.createElement("img");
             mineImage.className = "cell";
             mineImage.setAttribute("src", "assets/mine.svg");
             cell.replaceWith(mineImage);
+        }
+
+        // Generate extra mine if needed
+        if(minefield[x][y].isTrap && generateExtraMine && !extraMineGenerated ){
+            let mineImage = document.createElement("img");
+            mineImage.className = "cell";
+            mineImage.setAttribute("src", "assets/mine.svg");
+            cell.replaceWith(mineImage);
+            extraMineGenerated = true;
         }
     });
 }
@@ -73,9 +80,9 @@ function revealCell(element) {
     image.className = "cell";
     image.dataset.x = `${x}`;
     image.dataset.y = `${y}`
-    if (cell.isMine) {
+    if (cell.isMine || cell.isTrap) {
         image.setAttribute("src", "assets/mine.svg");
-        explode();
+        explode(!cell.isTrap);
     } else {
         image.setAttribute("src", `assets/${cell.adjacentMines}.svg`);
         if (cell.adjacentMines === 0) {
@@ -120,7 +127,7 @@ function toggleFlag(element) {
 }
 
 function generateMinefield(max_x, max_y, x, y) {
-    if (minefield.length !== 0){
+    if (minefield.length !== 0) {
         return;
     }
 
@@ -131,30 +138,82 @@ function generateMinefield(max_x, max_y, x, y) {
             row.push({
                 isMine: false,
                 isHidden: true,
-                adjacentMines: 0
+                adjacentMines: 0,
+                isTrap: false
             });
         }
         minefield.push(row);
     }
 
-    // Populate the mines
+    // Place a 50/50 guess and remove reserved + placed mines
     let minesPlaced = 0;
+    minesPlaced += generate5050(x, y);
 
+    // Populate the mines
     while (minesPlaced < max_mines) {
         let random_x = Math.floor(Math.random() * max_x);
         let random_y = Math.floor(Math.random() * max_y);
 
-        if (!minefield[random_x][random_y].isMine && (random_x !== x && random_y !== y)) {
+        if (!minefield[random_x][random_y].isMine &&
+            !(random_x === x && random_y === y) &&
+            !(minefield[random_x][random_y].isTrap)) {
             minefield[random_x][random_y].isMine = true;
             minesPlaced++;
 
-            // Increase adjacent mines counter
-            adjacentCellsOffset.forEach((adjacentCellsOffset) => {
-                if ((random_x + adjacentCellsOffset[0] >= 0 && random_x + adjacentCellsOffset[0] < max_x) &&
-                    (random_y + adjacentCellsOffset[1] >= 0 && random_y + adjacentCellsOffset[1] < max_y)) {
-                    minefield[random_x + adjacentCellsOffset[0]][random_y + adjacentCellsOffset[1]].adjacentMines++;
-                }
-            })
+            increaseAdjacentMinesCounter(random_x, random_y);
+        }
+    }
+}
+
+function increaseAdjacentMinesCounter(x, y) {
+    adjacentCellsOffset.forEach((adjacentCellsOffset) => {
+        if ((x + adjacentCellsOffset[0] >= 0 && x + adjacentCellsOffset[0] < max_x) &&
+            (y + adjacentCellsOffset[1] >= 0 && y + adjacentCellsOffset[1] < max_y)) {
+            minefield[x + adjacentCellsOffset[0]][y + adjacentCellsOffset[1]].adjacentMines++;
+        }
+    })
+}
+
+// TODO. Optimize this aberration of a function and also add implementation for missing corners
+function generate5050(x, y) {
+    // Force spawn corner
+    let cornerPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+    let max_x_position = max_x-1;
+    let max_y_position = max_y-1;
+
+    while (true) {
+        let reservedCells = [];
+        let rngCorner = Math.floor(Math.random() * cornerPositions.length);
+
+        switch (cornerPositions[rngCorner]) {
+            case 'top-left':
+                reservedCells = [[0, 0], [1, 0], [2, 0], [2, 1]];
+                if (reservedCells.some((cell) => cell[0] === x && cell[1] === y)) break;
+                minefield[0][0].isTrap = true;
+                minefield[1][0].isTrap = true;
+                increaseAdjacentMinesCounter(1,0);
+
+                minefield[2][0].isMine = true;
+                increaseAdjacentMinesCounter(2,0);
+                minefield[2][1].isMine = true;
+                increaseAdjacentMinesCounter(2,1);
+                return 3;
+            case 'top-right':
+                reservedCells = [[max_x_position, 0], [max_x_position-1, 0], [max_x_position-2, 0], [max_x_position-2, 1]];
+                if (reservedCells.some((cell) => cell[0] === x && cell[1] === y)) break;
+                minefield[max_x_position][0].isTrap = true;
+                minefield[max_x_position-1][0].isTrap = true;
+                increaseAdjacentMinesCounter(max_x_position-1,0);
+
+                minefield[max_x_position-2][0].isMine = true;
+                increaseAdjacentMinesCounter(max_x_position-2,0);
+                minefield[max_x_position-2][1].isMine = true;
+                increaseAdjacentMinesCounter(max_x_position-2,1);
+                return 3;
+            case 'bottom-left':
+                break;
+            case 'bottom-right':
+                break;
         }
     }
 }
